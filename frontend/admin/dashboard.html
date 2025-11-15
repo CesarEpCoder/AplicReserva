@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administrador</title>
+    <link rel="stylesheet" href="../styles/admin.css">
+</head>
+<body>
+    <header>
+        <h1>Panel de Administrador</h1>
+        <button onclick="logout()" class="logout-btn">Cerrar Sesión</button>
+    </header>
+
+    <main>
+        <!-- Sección de Estadísticas -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <h3>Total Canchas</h3>
+                <span id="totalCanchas">0</span>
+            </div>
+            <div class="stat-card">
+                <h3>Reservas Hoy</h3>
+                <span id="reservasHoy">0</span>
+            </div>
+            <div class="stat-card">
+                <h3>Disponibilidad</h3>
+                <span id="disponibilidad">0%</span>
+            </div>
+        </section>
+
+        <!-- Botones de Acción -->
+        <section class="actions-section">
+            <button onclick="nuevaCancha()" class="btn-primary">+ Nueva Cancha</button>
+            <button onclick="verTodasReservas()" class="btn-secondary">Ver Todas las Reservas</button>
+        </section>
+
+        <!-- Sección de Canchas -->
+        <section class="canchas-section">
+            <div class="section-header">
+                <h2>Mis Canchas</h2>
+                <div class="section-actions">
+                    <button onclick="recargarCanchas()" class="btn-secondary">↻ Actualizar</button>
+                </div>
+            </div>
+
+            <div id="canchasList" class="canchas-grid">
+                <!-- Canchas se cargan aquí -->
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        if (!checkAuth('admin')) {
+            window.location.href = '../auth/login.html';
+        }
+
+        // Cargar canchas al iniciar
+        loadCanchas();
+
+        async function loadCanchas() {
+            try {
+                console.log('🔄 Cargando canchas...');
+                const canchas = await fetchGET('/canchas/mis-canchas');
+                console.log('✅ Canchas cargadas:', canchas);
+                displayCanchas(canchas);
+                updateStats(canchas);
+            } catch (error) {
+                console.error('❌ Error cargando canchas:', error);
+                document.getElementById('canchasList').innerHTML = `
+                    <div class="error-state">
+                        <p>Error al cargar las canchas: ${error.message}</p>
+                        <button onclick="loadCanchas()" class="btn-primary">Reintentar</button>
+                    </div>
+                `;
+            }
+        }
+
+        function updateStats(canchas) {
+            document.getElementById('totalCanchas').textContent = canchas.length;
+            
+            // Calcular disponibilidad (puedes mejorar esto después)
+            const totalHorarios = canchas.reduce((total, cancha) => total + cancha.horarios.length, 0);
+            const disponibilidad = totalHorarios > 0 ? Math.round((totalHorarios / (canchas.length * 7)) * 100) : 0;
+            document.getElementById('disponibilidad').textContent = `${disponibilidad}%`;
+        }
+
+        function displayCanchas(canchas) {
+            const container = document.getElementById('canchasList');
+            
+            if (canchas.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No tienes canchas registradas</h3>
+                        <p>Comienza creando tu primera cancha para gestionar reservas</p>
+                        <button onclick="nuevaCancha()" class="btn-primary">Crear Primera Cancha</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = canchas.map(cancha => `
+                <div class="cancha-card">
+                    <div class="cancha-header">
+                        <img src="${cancha.imagenUrl}" alt="${cancha.nombre}" onerror="this.src='../images/default-cancha.jpg'">
+                        <div class="cancha-status"></div>
+                    </div>
+                    <div class="cancha-info">
+                        <h3>${cancha.nombre}</h3>
+                        <p class="cancha-descripcion">${cancha.descripcion}</p>
+                        
+                        <div class="cancha-details">
+                            <div class="detail-item">
+                                <strong>Horarios Disponibles:</strong>
+                                <span>${cancha.horarios.length} días</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Creada:</strong>
+                                <span>${new Date(cancha.createdAt).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+
+                        <div class="horarios-list">
+                            <strong>Días y Horas:</strong>
+                            <div class="horarios-tags">
+                                ${cancha.horarios.map(horario => `
+                                    <span class="horario-tag">
+                                        ${horario.dia}: ${horario.horaInicio} - ${horario.horaFin}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cancha-actions">
+                        <button onclick="editarCancha('${cancha._id}')" class="btn-edit">✏️ Editar</button>
+                        <button onclick="verReservasCancha('${cancha._id}')" class="btn-primary">📊 Reservas</button>
+                        <button onclick="eliminarCancha('${cancha._id}')" class="btn-delete">🗑️ Eliminar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function nuevaCancha() {
+            window.location.href = 'gestion-canchas.html';
+        }
+
+        function editarCancha(canchaId) {
+            window.location.href = `gestion-canchas.html?id=${canchaId}`;
+        }
+
+        function verReservasCancha(canchaId) {
+            window.location.href = `gestion-reservas.html?canchaId=${canchaId}`;
+        }
+
+        function verTodasReservas() {
+            window.location.href = 'gestion-reservas.html';
+        }
+
+        async function eliminarCancha(canchaId) {
+            if (confirm('¿Estás seguro de eliminar esta cancha? También se eliminarán todas sus reservas.')) {
+                try {
+                    await fetchDELETE(`/canchas/delete/${canchaId}`);
+                    alert('Cancha eliminada exitosamente');
+                    loadCanchas();
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            }
+        }
+
+        function recargarCanchas() {
+            loadCanchas();
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '../auth/login.html';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Reservas</title>
+    <link rel="stylesheet" href="../styles/admin.css">
+</head>
+<body>
+    <header>
+        <h1>Gestión de Reservas</h1>
+        <div>
+            <button onclick="volver()" class="btn-secondary">Volver</button>
+            <button onclick="logout()" class="logout-btn">Cerrar Sesión</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="filters-section">
+            <div class="filter-group">
+                <label>Filtrar por Cancha:</label>
+                <select id="filterCancha">
+                    <option value="">Todas las canchas</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Filtrar por Fecha:</label>
+                <input type="date" id="filterFecha">
+            </div>
+            <div class="filter-group">
+                <label>Filtrar por Estado:</label>
+                <select id="filterEstado">
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="confirmada">Confirmada</option>
+                    <option value="rechazada">Rechazada</option>
+                    <option value="cancelada">Cancelada</option>
+                </select>
+            </div>
+        </section>
+
+        <section class="reservas-section">
+            <h2>Reservas</h2>
+            <div id="reservasList" class="reservas-container">
+                <!-- Las reservas se cargarán aquí -->
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        if (!checkAuth('admin')) {
+            window.location.href = '../auth/login.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const canchaId = urlParams.get('canchaId');
+
+        loadReservas();
+        loadCanchasFilter();
+
+        async function loadReservas() {
+    try {
+        console.log('🔄 Cargando reservas...');
+        let url = '/reservas/admin';
+        
+        const canchaFilter = document.getElementById('filterCancha').value;
+        const fecha = document.getElementById('filterFecha').value;
+        const estado = document.getElementById('filterEstado').value;
+        
+        const params = new URLSearchParams();
+        if (canchaFilter) params.append('canchaId', canchaFilter);
+        if (fecha) params.append('fecha', fecha);
+        if (estado) params.append('estado', estado);
+        
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
+        
+        console.log('🔗 URL:', url);
+        
+        const reservas = await fetchGET(url);
+        console.log('✅ Reservas cargadas:', reservas);
+        displayReservas(reservas);
+    } catch (error) {
+        console.error('❌ Error cargando reservas:', error);
+        // CAMBIA ESTA PARTE:
+        document.getElementById('reservasList').innerHTML = `
+            <div class="empty-state">
+                <h3>No hay reservas disponibles</h3>
+                <p>Cuando los usuarios hagan reservas, aparecerán aquí.</p>
+            </div>
+        `;
+    }
+}
+
+        async function loadCanchasFilter() {
+            try {
+                const canchas = await fetchGET('/canchas/mis-canchas');
+                const select = document.getElementById('filterCancha');
+                
+                select.innerHTML = '<option value="">Todas las canchas</option>' +
+                    canchas.map(cancha => 
+                        `<option value="${cancha._id}" ${canchaId === cancha._id ? 'selected' : ''}>${cancha.nombre}</option>`
+                    ).join('');
+            } catch (error) {
+                console.error('Error cargando canchas:', error);
+            }
+        }
+
+        function displayReservas(reservas) {
+            const container = document.getElementById('reservasList');
+            
+            if (!reservas || reservas.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No hay reservas</h3>
+                        <p>No se encontraron reservas con los filtros aplicados</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = reservas.map(reserva => `
+                <div class="reserva-card ${reserva.estado}">
+                    <div class="reserva-header">
+                        <h3>${reserva.canchaId?.nombre || 'Cancha no disponible'}</h3>
+                        <span class="estado-badge ${reserva.estado}">${reserva.estado}</span>
+                    </div>
+                    <div class="reserva-info">
+                        <div class="reserva-detail">
+                            <strong>Usuario:</strong>
+                            <span>${reserva.usuarioId?.nombre || 'Usuario no disponible'} (${reserva.usuarioId?.email || 'Email no disponible'})</span>
+                        </div>
+                        <div class="reserva-detail">
+                            <strong>Fecha:</strong>
+                            <span>${new Date(reserva.fecha).toLocaleDateString()}</span>
+                        </div>
+                        <div class="reserva-detail">
+                            <strong>Hora:</strong>
+                            <span>${reserva.hora}</span>
+                        </div>
+                        <div class="reserva-detail">
+                            <strong>Estado:</strong>
+                            <span>${reserva.estado}</span>
+                        </div>
+                    </div>
+                    <div class="reserva-actions">
+                        ${reserva.estado === 'pendiente' ? `
+                            <button onclick="confirmarReserva('${reserva._id}')" class="btn-primary">✅ Confirmar</button>
+                            <button onclick="rechazarReserva('${reserva._id}')" class="btn-delete">❌ Rechazar</button>
+                        ` : ''}
+                        ${reserva.estado === 'confirmada' ? `
+                            <button onclick="cancelarReserva('${reserva._id}')" class="btn-delete">🗑️ Cancelar</button>
+                        ` : ''}
+                        <button onclick="verDetallesReserva('${reserva._id}')" class="btn-secondary">👁️ Detalles</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function confirmarReserva(reservaId) {
+            try {
+                await fetchPUT(`/reservas/${reservaId}/confirmar`, {});
+                alert('Reserva confirmada exitosamente');
+                loadReservas();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function rechazarReserva(reservaId) {
+            if (confirm('¿Estás seguro de rechazar esta reserva?')) {
+                try {
+                    await fetchPUT(`/reservas/${reservaId}/rechazar`, {});
+                    alert('Reserva rechazada exitosamente');
+                    loadReservas();
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            }
+        }
+
+        async function cancelarReserva(reservaId) {
+            if (confirm('¿Estás seguro de cancelar esta reserva?')) {
+                try {
+                    await fetchPUT(`/reservas/${reservaId}/cancelar-admin`, {});
+                    alert('Reserva cancelada exitosamente');
+                    loadReservas();
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            }
+        }
+
+        function verDetallesReserva(reservaId) {
+            alert(`Detalles de reserva ID: ${reservaId}`);
+        }
+
+        function volver() {
+            window.location.href = 'dashboard.html';
+        }
+
+        // Filtros
+        document.getElementById('filterCancha').addEventListener('change', aplicarFiltros);
+        document.getElementById('filterFecha').addEventListener('change', aplicarFiltros);
+        document.getElementById('filterEstado').addEventListener('change', aplicarFiltros);
+
+        function aplicarFiltros() {
+            loadReservas();
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '../auth/login.html';
+        }
+    </script>
+</body>
+</html>

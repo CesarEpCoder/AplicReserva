@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Reservas</title>
+    <link rel="stylesheet" href="../styles/user.css">
+</head>
+<body>
+    <header>
+        <h1>Mis Reservas</h1>
+        <div>
+            <button onclick="window.location.href='reservas.html'" class="btn-secondary">Nueva Reserva</button>
+            <button onclick="logout()" class="logout-btn">Cerrar Sesión</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="reservas-section">
+            <h2>Historial de Reservas</h2>
+            <div id="reservasList">
+                <!-- Reservas se cargan aquí -->
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        if (!checkAuth('user')) {
+            window.location.href = '../auth/login.html';
+        }
+
+        loadReservas();
+
+        async function loadReservas() {
+            try {
+                const reservas = await fetchGET('/reservas/mis-reservas');
+                displayReservas(reservas);
+            } catch (error) {
+                console.error('Error cargando reservas:', error);
+            }
+        }
+
+        function displayReservas(reservas) {
+            const container = document.getElementById('reservasList');
+            
+            if (reservas.length === 0) {
+                container.innerHTML = '<p class="no-data">No tienes reservas</p>';
+                return;
+            }
+
+            container.innerHTML = reservas.map(reserva => `
+                <div class="reserva-card ${reserva.estado}">
+                    <div class="reserva-header">
+                        <h3>${reserva.canchaId.nombre}</h3>
+                        <span class="estado-badge ${reserva.estado}">${reserva.estado.toUpperCase()}</span>
+                    </div>
+                    
+                    <div class="reserva-info">
+                        <p><strong>Fecha:</strong> ${new Date(reserva.fecha).toLocaleDateString('es-ES')}</p>
+                        <p><strong>Hora:</strong> ${reserva.hora}</p>
+                        <p><strong>Descripción:</strong> ${reserva.canchaId.descripcion}</p>
+                        <p><strong>Reservado el:</strong> ${new Date(reserva.createdAt).toLocaleString('es-ES')}</p>
+                    </div>
+
+                    ${reserva.estado === 'pendiente' ? `
+                        <div class="reserva-actions">
+                            <button onclick="confirmarPago('${reserva._id}')" class="btn-confirmar">Confirmar Pago</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function confirmarPago(reservaId) {
+            try {
+                const response = await fetchPOST('/reservas/confirmar-pago', { reservaId });
+                alert('Pago confirmado exitosamente');
+                loadReservas();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

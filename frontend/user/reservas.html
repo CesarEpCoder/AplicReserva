@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservar Canchas</title>
+    <link rel="stylesheet" href="../styles/user.css">
+</head>
+<body>
+    <header>
+        <h1>Reservar Canchas</h1>
+        <div>
+            <button onclick="window.location.href='mis-reservas.html'" class="btn-secondary">Mis Reservas</button>
+            <button onclick="logout()" class="logout-btn">Cerrar Sesión</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="filters">
+            <div class="date-selector">
+                <label>Seleccionar Fecha:</label>
+                <input type="date" id="fecha" min="<?php echo date('Y-m-d'); ?>">
+            </div>
+        </section>
+
+        <section class="canchas-list">
+            <h2>Canchas Disponibles</h2>
+            <div id="canchasContainer">
+                <!-- Canchas se cargan aquí -->
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        if (!checkAuth('user')) {
+            window.location.href = '../auth/login.html';
+        }
+
+        // Establecer fecha mínima como hoy
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('fecha').min = today;
+        document.getElementById('fecha').value = today;
+
+        // Cargar canchas
+        loadCanchas();
+
+        // Cuando cambia la fecha, actualizar disponibilidad
+        document.getElementById('fecha').addEventListener('change', () => {
+            document.querySelectorAll('.cancha-card').forEach(card => {
+                const canchaId = card.dataset.canchaId;
+                loadDisponibilidad(canchaId, card);
+            });
+        });
+
+        async function loadCanchas() {
+            try {
+                const canchas = await fetchGET('/canchas/todas');
+                displayCanchas(canchas);
+            } catch (error) {
+                console.error('Error cargando canchas:', error);
+            }
+        }
+
+        function displayCanchas(canchas) {
+            const container = document.getElementById('canchasContainer');
+            
+            if (canchas.length === 0) {
+                container.innerHTML = '<p class="no-data">No hay canchas disponibles</p>';
+                return;
+            }
+
+            container.innerHTML = canchas.map(cancha => `
+                <div class="cancha-card" data-cancha-id="${cancha._id}">
+                    <img src="${cancha.imagenUrl}" alt="${cancha.nombre}">
+                    <div class="cancha-info">
+                        <h3>${cancha.nombre}</h3>
+                        <p>${cancha.descripcion}</p>
+                        <p class="admin-info">Administrada por: ${cancha.adminId.nombre}</p>
+                        
+                        <div class="disponibilidad-section">
+                            <h4>Horarios Disponibles para <span class="fecha-display"></span>:</h4>
+                            <div class="horarios-list" id="horarios-${cancha._id}">
+                                <p>Cargando horarios...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Cargar disponibilidad para cada cancha
+            canchas.forEach(cancha => {
+                const card = document.querySelector(`[data-cancha-id="${cancha._id}"]`);
+                loadDisponibilidad(cancha._id, card);
+            });
+        }
+
+        async function loadDisponibilidad(canchaId, card) {
+            const fecha = document.getElementById('fecha').value;
+            if (!fecha) return;
+
+            try {
+                const horarios = await fetchGET(`/canchas/${canchaId}/disponibilidad?fecha=${fecha}`);
+                displayHorarios(canchaId, horarios, card);
+            } catch (error) {
+                console.error('Error cargando disponibilidad:', error);
+            }
+        }
+
+        function displayHorarios(canchaId, horarios, card) {
+            const horariosContainer = card.querySelector('.horarios-list');
+            const fechaDisplay = card.querySelector('.fecha-display');
+            const fecha = new Date(document.getElementById('fecha').value);
+            
+            fechaDisplay.textContent = fecha.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
+            if (horarios.length === 0) {
+                horariosContainer.innerHTML = '<p class="no-horarios">No hay horarios disponibles para esta fecha</p>';
+                return;
+            }
+
+            horariosContainer.innerHTML = horarios.map(horario => `
+                <div class="horario-disponible">
+                    <span>${horario.dia}: ${horario.horaInicio} - ${horario.horaFin}</span>
+                    <button onclick="reservar('${canchaId}', '${document.getElementById('fecha').value}', '${horario.horaInicio}')" 
+                            class="btn-reservar">
+                        Reservar
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function reservar(canchaId, fecha, hora) {
+            if (!confirm(`¿Confirmar reserva para el ${fecha} a las ${hora}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetchPOST('/reservas/crear-temporal', {
+                    canchaId,
+                    fecha,
+                    hora
+                });
+
+                // Simular redirección a pago
+                if (response.pago && response.pago.init_point) {
+                    window.location.href = response.pago.init_point;
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

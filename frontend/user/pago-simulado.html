@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación de Pago</title>
+    <link rel="stylesheet" href="../styles/user.css">
+</head>
+<body>
+    <div class="pago-container">
+        <div class="pago-simulado">
+            <h2>Simulación de Pago - Mercado Pago</h2>
+            <div class="pago-info">
+                <p><strong>Concepto:</strong> Reserva de Cancha</p>
+                <p><strong>Monto:</strong> $50.00</p>
+                <p><strong>Estado:</strong> <span class="estado-pendiente">PENDIENTE</span></p>
+            </div>
+            
+            <div class="pago-actions">
+                <button onclick="simularPagoExitoso()" class="btn-success">Pagar Exitosamente</button>
+                <button onclick="simularPagoFallido()" class="btn-danger">Simular Pago Fallido</button>
+                <button onclick="cancelarPago()" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/auth.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const reservaId = urlParams.get('reservaId');
+
+        function simularPagoExitoso() {
+            if (reservaId) {
+                // En una implementación real, aquí se confirmaría el pago con el backend
+                alert('Pago exitoso! Tu reserva ha sido confirmada.');
+                window.location.href = 'mis-reservas.html';
+            }
+        }
+
+        function simularPagoFallido() {
+            alert('Pago fallido. Por favor intenta nuevamente.');
+            window.location.href = 'reservas.html';
+        }
+
+        function cancelarPago() {
+            window.location.href = 'reservas.html';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SuperAdmin Dashboard</title>
+    <link rel="stylesheet" href="../styles/superadmin.css">
+</head>
+<body>
+    <header>
+        <h1>Panel SuperAdmin</h1>
+        <button onclick="logout()" class="logout-btn">Cerrar Sesión</button>
+    </header>
+
+    <main>
+        <section class="admin-management">
+            <h2>Gestión de Administradores</h2>
+            
+            <div class="form-section">
+                <h3>Crear Nuevo Admin</h3>
+                <form id="createAdminForm">
+                    <input type="text" id="adminNombre" placeholder="Nombre" required>
+                    <input type="email" id="adminEmail" placeholder="Email" required>
+                    <input type="password" id="adminPassword" placeholder="Contraseña" required minlength="6">
+                    <button type="submit">Crear Admin</button>
+                </form>
+            </div>
+
+            <div class="admins-list">
+                <h3>Administradores Registrados</h3>
+                <div id="adminsTable" class="table-container">
+                    <!-- Lista de admins se carga aquí -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        // Verificar autenticación
+        if (!checkAuth('superadmin')) {
+            window.location.href = '../auth/login.html';
+        }
+
+        // Cargar lista de admins
+        loadAdmins();
+
+        // Formulario crear admin
+        document.getElementById('createAdminForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const nombre = document.getElementById('adminNombre').value;
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+
+            try {
+                await fetchPOST('/admin/create', { nombre, email, password });
+                alert('Admin creado exitosamente');
+                document.getElementById('createAdminForm').reset();
+                loadAdmins();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+
+        async function loadAdmins() {
+            try {
+                const admins = await fetchGET('/admin/list');  // ✅ SIN /api
+                displayAdmins(admins);
+            } catch (error) {
+                console.error('Error cargando admins:', error);
+            }
+        }
+
+        function displayAdmins(admins) {
+            const container = document.getElementById('adminsTable');
+            
+            if (admins.length === 0) {
+                container.innerHTML = '<p>No hay administradores registrados</p>';
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            admins.forEach(admin => {
+                html += `
+                    <tr>
+                        <td>${admin.nombre}</td>
+                        <td>${admin.email}</td>
+                        <td>
+                            <button onclick="deleteAdmin('${admin._id}')" class="delete-btn">Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function deleteAdmin(adminId) {
+            if (confirm('¿Estás seguro de eliminar este administrador?')) {
+                try {
+                    await fetchDELETE(`/admin/delete/${adminId}`);  // ✅ SIN /api
+                    alert('Admin eliminado exitosamente');
+                    loadAdmins();
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

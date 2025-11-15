@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Cancha</title>
+    <link rel="stylesheet" href="../styles/admin.css">
+</head>
+<body>
+    <header>
+        <h1 id="formTitle">Nueva Cancha</h1>
+        <div>
+            <button onclick="volver()" class="btn-secondary">Volver</button>
+            <button onclick="logout()" class="logout-btn">Cerrar Sesión</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="form-section">
+            <form id="canchaForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label>Nombre de la Cancha:</label>
+                    <input type="text" id="nombre" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Descripción:</label>
+                    <textarea id="descripcion" required rows="4"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Imagen:</label>
+                    <input type="file" id="imagen" accept="image/*" required>
+                    <small id="imagenActual"></small>
+                </div>
+
+                <div class="form-group">
+                    <label>Horarios Disponibles:</label>
+                    <div id="horariosContainer">
+                        <div class="horario-item">
+                            <select class="dia">
+                                <option value="Lunes">Lunes</option>
+                                <option value="Martes">Martes</option>
+                                <option value="Miércoles">Miércoles</option>
+                                <option value="Jueves">Jueves</option>
+                                <option value="Viernes">Viernes</option>
+                                <option value="Sábado">Sábado</option>
+                                <option value="Domingo">Domingo</option>
+                            </select>
+                            <input type="time" class="horaInicio" required>
+                            <input type="time" class="horaFin" required>
+                            <button type="button" onclick="eliminarHorario(this)" class="btn-delete">×</button>
+                        </div>
+                    </div>
+                    <button type="button" onclick="agregarHorario()" class="btn-secondary">+ Agregar Horario</button>
+                </div>
+
+                <button type="submit" class="btn-primary">Guardar Cancha</button>
+            </form>
+        </section>
+    </main>
+
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const canchaId = urlParams.get('id');
+        let esEdicion = false;
+
+        if (!checkAuth('admin')) {
+            window.location.href = '../auth/login.html';
+        }
+
+        if (canchaId) {
+            esEdicion = true;
+            document.getElementById('formTitle').textContent = 'Editar Cancha';
+            cargarCancha(canchaId);
+        }
+
+        document.getElementById('canchaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    console.log('🟡 Iniciando envío del formulario...');
+    console.log('🟡 Es edición:', esEdicion);
+    console.log('🟡 Cancha ID:', canchaId);
+    
+    const formData = new FormData();
+    formData.append('nombre', document.getElementById('nombre').value);
+    formData.append('descripcion', document.getElementById('descripcion').value);
+    formData.append('horarios', JSON.stringify(obtenerHorarios()));
+
+    const imagenInput = document.getElementById('imagen');
+    if (!imagenInput.files[0] && !esEdicion) {
+        alert('La imagen es requerida');
+        return;
+    }
+    if (imagenInput.files[0]) {
+        formData.append('imagen', imagenInput.files[0]);
+        console.log('🟡 Imagen agregada:', imagenInput.files[0].name);
+    }
+
+    try {
+        console.log('🟡 Enviando datos...');
+        if (esEdicion) {
+            console.log('🟡 Usando PUT para editar...');
+            await fetchPUTFormData(`/canchas/edit/${canchaId}`, formData);
+            alert('Cancha actualizada exitosamente');
+        } else {
+            console.log('🟡 Usando POST para crear...');
+            await fetchPOSTFormData('/canchas/create', formData);
+            alert('Cancha creada exitosamente');
+        }
+        volver();
+    } catch (error) {
+        console.error('🔴 Error:', error);
+        alert('Error: ' + error.message);
+    }
+});
+
+        async function cargarCancha(id) {
+            try {
+                const canchas = await fetchGET('/canchas/mis-canchas');
+                const cancha = canchas.find(c => c._id === id);
+                
+                if (cancha) {
+                    document.getElementById('nombre').value = cancha.nombre;
+                    document.getElementById('descripcion').value = cancha.descripcion;
+                    document.getElementById('imagenActual').innerHTML = 
+                        `Imagen actual: <a href="${cancha.imagenUrl}" target="_blank">Ver imagen</a>`;
+                    
+                    // Cargar horarios
+                    document.getElementById('horariosContainer').innerHTML = '';
+                    cancha.horarios.forEach(horario => {
+                        agregarHorario(horario);
+                    });
+                }
+            } catch (error) {
+                console.error('Error cargando cancha:', error);
+            }
+        }
+
+        function agregarHorario(horario = null) {
+            const container = document.getElementById('horariosContainer');
+            const horarioDiv = document.createElement('div');
+            horarioDiv.className = 'horario-item';
+            
+            horarioDiv.innerHTML = `
+                <select class="dia">
+                    <option value="Lunes">Lunes</option>
+                    <option value="Martes">Martes</option>
+                    <option value="Miércoles">Miércoles</option>
+                    <option value="Jueves">Jueves</option>
+                    <option value="Viernes">Viernes</option>
+                    <option value="Sábado">Sábado</option>
+                    <option value="Domingo">Domingo</option>
+                </select>
+                <input type="time" class="horaInicio" required>
+                <input type="time" class="horaFin" required>
+                <button type="button" onclick="eliminarHorario(this)" class="btn-delete">×</button>
+            `;
+
+            if (horario) {
+                horarioDiv.querySelector('.dia').value = horario.dia;
+                horarioDiv.querySelector('.horaInicio').value = horario.horaInicio;
+                horarioDiv.querySelector('.horaFin').value = horario.horaFin;
+            }
+
+            container.appendChild(horarioDiv);
+        }
+
+        function eliminarHorario(boton) {
+            if (document.querySelectorAll('.horario-item').length > 1) {
+                boton.parentElement.remove();
+            } else {
+                alert('Debe haber al menos un horario');
+            }
+        }
+
+        function obtenerHorarios() {
+            const horarios = [];
+            document.querySelectorAll('.horario-item').forEach(item => {
+                horarios.push({
+                    dia: item.querySelector('.dia').value,
+                    horaInicio: item.querySelector('.horaInicio').value,
+                    horaFin: item.querySelector('.horaFin').value
+                });
+            });
+            return horarios;
+        }
+
+        function volver() {
+            window.location.href = 'dashboard.html';
+        }
+    </script>
+</body>
+</html>
